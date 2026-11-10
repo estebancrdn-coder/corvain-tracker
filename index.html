@@ -608,7 +608,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
 
   function removeCell(coll, id) {
     var td = el("td", "num");
-    if (state.role === "owner") {
+    if (state.canWrite) {
       var b = el("button", "small ghost", "Remove"); b.type = "button";
       b.addEventListener("click", function () {
         confirmStep(b, "Remove for good?", function () {

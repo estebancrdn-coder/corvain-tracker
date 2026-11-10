@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corvain Family Tracker</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cinzel:wght@500;700&family=Crimson+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: service tabs on top, a four-tile summary band (level, weekly goal, produced, missions),
+   then two columns: left = the forms people use (log production, log mission, roster, settings),
+   right = what they read (live payouts, top producers, missions, production log). Stacks on phones. */
+:root {
+  /* One dark world, by choice: charcoal damask, engraved silver lettering, serpent green. */
+  --bg: #0d0e0d;
+  --surface: #171917;
+  --ink: #dddcd5;        /* engraved silver */
+  --muted: #9b9e96;
+  --line: #313530;
+  --bloom: #4fb477;      /* accent: serpent green */
+  --bloom-soft: #16301f;
+  --leaf: #74d394;       /* progress / good */
+  --leaf-soft: #1b2f22;
+  --owed: #ecebe4;       /* payout amounts: bright silver */
+  --owed-soft: #2a2d2a;
+  --danger: #e58378;
+  --font-title: "Cinzel Decorative", "Cinzel", Georgia, serif;
+  --font-display: "Cinzel", Georgia, "Times New Roman", serif;
+  --font-body: "Crimson Pro", Georgia, "Times New Roman", serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--bg);
+  background-image: url("damask.jpg");
+  background-size: 680px 680px;
+  background-repeat: repeat;
+  background-attachment: fixed;
+  color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.4;
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 18px; }
+header.top { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; width: fit-content; max-width: 100%; align-self: center; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--line); padding: 20px 22px; }
+h1 { font-family: var(--font-title); font-weight: 700; font-size: 32px; letter-spacing: .03em; margin: 0; text-wrap: balance; text-shadow: 0 1px 0 #000, 0 0 18px rgba(255,255,255,.12); }
+.family { font-family: var(--font-display); font-weight: 500; font-size: 13px; letter-spacing: .32em; text-transform: uppercase; color: var(--bloom); margin: 0 0 4px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+h3 { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.sub { color: var(--ink); margin: 6px 0 0; }
+.crest { display: block; width: min(100%, 420px); height: auto; margin: 0 auto 10px; border-radius: 3px; mix-blend-mode: lighten; }
+.status { font-size: 14px; color: var(--muted); }
+.status.warn { color: var(--owed); font-weight: 600; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tab { border-radius: 999px; padding: 7px 14px; }
+.tab[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tab.add { border-style: dashed; color: var(--muted); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--line); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 12px; }
+
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile .k { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.05; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile .v small { font-size: 15px; font-weight: 500; color: var(--muted); }
+.tile .d { font-size: 14px; color: var(--muted); }
+.tile.level .v { color: var(--leaf); }
+.level-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stepper { display: flex; gap: 4px; }
+.stepper button { width: 30px; height: 30px; padding: 0; line-height: 1; font-size: 16px; }
+.meter { height: 10px; border-radius: 5px; background: var(--leaf-soft); overflow: hidden; }
+.meter > div { height: 100%; width: 0%; background: var(--leaf); border-radius: 5px; transition: width .4s ease; }
+
+.lockbar { padding: 12px 18px; }
+.lockrow { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.lockrow input { width: 220px; max-width: 100%; }
+input[type="password"] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; }
+.cols { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+form { display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inline { display: flex; gap: 8px; }
+.inline input { flex: 1; min-width: 0; }
+label, legend { font-size: 15px; font-weight: 600; padding: 0; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.hint { font-size: 14px; color: var(--muted); font-weight: 400; }
+input[type="text"], input[type="number"], select {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 9px 10px; width: 100%;
+}
+.checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 8px; cursor: pointer; }
+.checks input { accent-color: var(--bloom); margin: 0; }
+button { font: inherit; font-weight: 600; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--bloom); border-color: var(--bloom); color: #08110b; font-family: var(--font-display); letter-spacing: .06em; text-transform: uppercase; font-size: 14px; padding: 10px 14px; }
+button.small { padding: 5px 9px; font-size: 13px; }
+button.ghost { border-color: transparent; color: var(--muted); }
+button.ghost:hover { color: var(--danger); border-color: var(--line); }
+button.danger { color: var(--danger); }
+button[disabled], input[disabled], select[disabled] { opacity: .55; cursor: default; }
+:is(button, input, select, summary, textarea):focus-visible { outline: 3px solid var(--bloom); outline-offset: 2px; }
+.msg { font-size: 15px; min-height: 18px; margin: 0; }
+.msg.err { color: var(--danger); }
+.msg.ok { color: var(--leaf); }
+details summary { cursor: pointer; font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .06em; text-transform: uppercase; border-radius: 4px; }
+details[open] summary { margin-bottom: 14px; }
+.details-body { display: flex; flex-direction: column; gap: 16px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 3px 4px 3px 11px; font-size: 13px; font-weight: 600; }
+.chip.mentor { background: var(--owed-soft); color: var(--owed); }
+.chip.prospect { background: var(--leaf-soft); color: var(--leaf); }
+.chip.plain { padding: 3px 11px; }
+.chip button { border: 0; background: transparent; color: inherit; padding: 0 6px; font-size: 15px; line-height: 1; border-radius: 999px; }
+
+.pools { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pool { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pool .each { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.1; color: var(--leaf); font-variant-numeric: tabular-nums; }
+.pool .each small { font-family: var(--font-body); font-size: 15px; font-weight: 500; color: var(--muted); }
+.pool .how { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.num { text-align: right; }
+td.name { font-weight: 600; overflow-wrap: anywhere; }
+td.note { color: var(--muted); overflow-wrap: anywhere; }
+td.rank { color: var(--muted); width: 28px; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.pill.owed { background: var(--owed-soft); color: var(--owed); }
+.pill.mentor { background: var(--owed-soft); color: var(--owed); }
+.pill.prospect { background: var(--leaf-soft); color: var(--leaf); }
+.pill.none { background: var(--bg); color: var(--muted); }
+.empty { color: var(--muted); padding: 8px 2px; margin: 0; }
+textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; }
+
+@media (max-width: 860px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 460px) {
+  .pools { grid-template-columns: 1fr; }
+  h1 { font-size: 26px; }
+  .tile .v { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { .meter > div { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <img class="crest" src="corvain.png" alt="The Corvain Family" width="502" height="124">
+      <h1 id="page-title">Garden Tracker</h1>
+      <p class="sub">Level, weekly goal, who produced what, missions and live payouts.</p>
+    </div>
+    <div class="status" id="status" role="status">Connecting to saved data…</div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Services" hidden></nav>
+
+  <section class="panel lockbar" aria-label="Editing access">
+    <form id="lock-form" class="lockrow" autocomplete="off">
+      <div id="lock-closed" class="lockrow">
+        <label for="lock-pass">Passcode to edit</label>
+        <input type="password" id="lock-pass" maxlength="100" autocomplete="off" placeholder="Enter passcode">
+        <button type="submit" id="lock-btn">Unlock editing</button>
+      </div>
+      <div id="lock-open" class="lockrow" hidden>
+        <span>Editing is unlocked on this device.</span>
+        <button type="button" id="relock-btn" class="small">Lock</button>
+      </div>
+      <span class="msg" id="lock-msg" role="status" style="min-height:0"></span>
+    </form>
+  </section>
+
+  <p class="empty" id="no-services" hidden>This tracker has no data yet.</p>
+
+  <div id="main" class="stack" hidden>
+
+    <section class="tiles" aria-label="This week">
+      <div class="tile level">
+        <div class="k" id="k-level">Level</div>
+        <div class="level-row">
+          <div class="v" id="v-level">1</div>
+          <div class="stepper">
+            <button type="button" id="lvl-down" aria-label="Lower level">−</button>
+            <button type="button" id="lvl-up" aria-label="Raise level">+</button>
+          </div>
+        </div>
+        <div class="d">Set by hand</div>
+      </div>
+      <div class="tile">
+        <div class="k" id="k-goal">Goal for the week</div>
+        <div class="v"><span id="v-goal">0</span> <small id="v-goal-unit"></small></div>
+        <div class="meter" aria-hidden="true"><div id="goal-fill"></div></div>
+        <div class="d" id="d-goal"></div>
+      </div>
+      <div class="tile">
+        <div class="k" id="k-prod">Produced this week</div>
+        <div class="v" id="v-prod">0</div>
+        <div class="d" id="d-week"></div>
+      </div>
+      <div class="tile">
+        <div class="k" id="k-miss">Missions this week</div>
+        <div class="v" id="v-miss">0</div>
+        <div class="d" id="d-miss"></div>
+      </div>
+    </section>
+
+    <div class="cols">
+      <div class="stack">
+        <section class="panel" aria-labelledby="lp-h">
+          <h2 id="lp-h">Log production</h2>
+          <form id="prod-form" autocomplete="off">
+            <div class="field">
+              <label for="p-who">Who produced it</label>
+              <select id="p-who" required></select>
+            </div>
+            <div class="field">
+              <label for="p-amt" id="p-amt-label">How many</label>
+              <input type="number" id="p-amt" min="1" max="1000000" step="1" required inputmode="numeric" placeholder="0">
+            </div>
+            <div class="field">
+              <label for="p-note">Note <span class="hint">(optional)</span></label>
+              <input type="text" id="p-note" maxlength="120">
+            </div>
+            <button type="submit" class="primary" id="p-btn">Add to the total</button>
+            <p class="msg" id="p-msg" role="status"></p>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="lm-h">
+          <h2 id="lm-h">Log a mission</h2>
+          <form id="miss-form" autocomplete="off">
+            <div class="field">
+              <label for="m-title">Mission</label>
+              <input type="text" id="m-title" maxlength="80" required placeholder="What was the mission?">
+            </div>
+            <fieldset>
+              <legend>Who took part</legend>
+              <div class="checks" id="m-who"></div>
+            </fieldset>
+            <button type="submit" class="primary" id="m-btn">Mark mission completed</button>
+            <p class="msg" id="m-msg" role="status"></p>
+          </form>
+        </section>
+
+        <section class="panel">
+          <details id="roster" open>
+            <summary>Mentors and prospects</summary>
+            <div class="details-body">
+              <div class="field">
+                <h3>Mentors</h3>
+                <div class="chips" id="mentor-chips"></div>
+                <form class="inline" id="mentor-form" style="flex-direction:row" autocomplete="off">
+                  <input type="text" id="mentor-in" maxlength="30" placeholder="Add a mentor" aria-label="Mentor name">
+                  <button type="submit" id="mentor-btn">Add</button>
+                </form>
+              </div>
+              <div class="field">
+                <h3>Prospects</h3>
+                <div class="chips" id="prospect-chips"></div>
+                <form class="inline" id="prospect-form" style="flex-direction:row" autocomplete="off">
+                  <input type="text" id="prospect-in" maxlength="30" placeholder="Add a prospect" aria-label="Prospect name">
+                  <button type="submit" id="prospect-btn">Add</button>
+                </form>
+              </div>
+              <p class="msg" id="r-msg" role="status"></p>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel">
+          <details id="settings">
+            <summary>Wording and settings</summary>
+            <div class="details-body">
+              <form id="set-form" autocomplete="off">
+                <h3>Wording</h3>
+                <span class="hint">Change these to fit any service. Leave one blank to go back to its default.</span>
+                <div class="field"><label for="w-title">Page title</label><input type="text" id="w-title" maxlength="40"></div>
+                <div class="field"><label for="w-level">Level box</label><input type="text" id="w-level" maxlength="40"></div>
+                <div class="field"><label for="w-goal">Weekly goal box</label><input type="text" id="w-goal" maxlength="40"></div>
+                <div class="field"><label for="w-goalUnit">Word after the goal number</label><input type="text" id="w-goalUnit" maxlength="20"></div>
+                <div class="field"><label for="w-produced">Produced box</label><input type="text" id="w-produced" maxlength="40"></div>
+                <div class="field"><label for="w-missions">Missions box</label><input type="text" id="w-missions" maxlength="40"></div>
+                <div class="field"><label for="w-each">Payout wording <span class="hint">(prospects and mentors)</span></label><input type="text" id="w-each" maxlength="30"></div>
+                <div class="field"><label for="s-unit">What it produces <span class="hint">(used in sentences, like "5 plants")</span></label><input type="text" id="s-unit" maxlength="20" required></div>
+                <h3>Numbers</h3>
+                <div class="field"><label for="s-goalof">The weekly goal counts</label>
+                  <select id="s-goalof"><option value="production">What is produced</option><option value="missions">Missions completed</option></select></div>
+                <div class="field-row">
+                  <div class="field"><label for="s-level">Level</label><input type="number" id="s-level" min="0" max="999" step="1" required></div>
+                  <div class="field"><label for="s-goal">Goal for the week</label><input type="number" id="s-goal" min="0" max="10000000" step="1" required></div>
+                </div>
+                <div class="field">
+                  <label for="s-pct">Prospects' share of production (%)</label>
+                  <input type="number" id="s-pct" min="0" max="100" step="1" required>
+                  <span class="hint">Split evenly between prospects. Mentors split the rest evenly.</span>
+                </div>
+                <button type="submit" id="s-btn">Save settings</button>
+                <p class="msg" id="s-msg" role="status"></p>
+              </form>
+              <form id="pc-form" autocomplete="off">
+                <h3>Change the passcode</h3>
+                <span class="hint">Everyone who edits will need the new one.</span>
+                <div class="inline"><input type="password" id="pc-new" maxlength="100" autocomplete="new-password" placeholder="New passcode" aria-label="New passcode"><button type="submit" id="pc-btn">Change</button></div>
+                <p class="msg" id="pc-msg" role="status"></p>
+              </form>
+              <div class="field">
+                <h3>Weekly reset</h3>
+                <span class="hint">Starts a fresh week: produced, payouts and missions go back to zero. Past entries stay in the all-time list.</span>
+                <div><button type="button" id="week-btn">Start a new week</button></div>
+              </div>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel" aria-labelledby="pay-h">
+          <div class="panel-head">
+            <h2 id="pay-h">Live payouts</h2>
+            <span class="hint" id="pay-note"></span>
+          </div>
+          <div class="pools">
+            <div class="pool">
+              <h3 id="pp-title">Prospects</h3>
+              <div class="each" id="pp-each">0</div>
+              <div class="how" id="pp-how"></div>
+              <div class="chips" id="pp-names"></div>
+            </div>
+            <div class="pool">
+              <h3 id="mp-title">Mentors</h3>
+              <div class="each" id="mp-each">0</div>
+              <div class="how" id="mp-how"></div>
+              <div class="chips" id="mp-names"></div>
+            </div>
+          </div>
+          <div class="panel-head" style="justify-content:flex-start;align-items:center">
+            <button type="button" class="small" id="copy-btn">Copy summary for Discord</button>
+            <span class="msg" id="copy-msg" role="status" style="min-height:0"></span>
+          </div>
+          <textarea id="copy-box" rows="8" readonly hidden aria-label="Discord summary text"></textarea>
+        </section>
+
+        <section class="panel" aria-labelledby="top-h">
+          <div class="panel-head">
+            <h2 id="top-h">Who produced the most</h2>
+            <div class="inline">
+              <button type="button" class="small tab" id="lb-week" aria-pressed="true">This week</button>
+              <button type="button" class="small tab" id="lb-all" aria-pressed="false">All time</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="top-table">
+              <thead><tr><th></th><th>Name</th><th>Role</th><th class="num" id="th-prod">Produced</th><th class="num">Missions</th></tr></thead>
+              <tbody id="top-body"></tbody>
+            </table>
+            <p class="empty" id="top-empty">Nothing logged yet. Totals appear here as people add their numbers.</p>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="ml-h">
+          <div class="panel-head"><h2 id="ml-h">Missions this week</h2><span class="hint" id="ml-count"></span></div>
+          <div class="table-wrap">
+            <table id="ml-table">
+              <thead><tr><th>When</th><th>Mission</th><th>Who took part</th><th></th></tr></thead>
+              <tbody id="ml-body"></tbody>
+            </table>
+            <p class="empty" id="ml-empty">No missions completed this week yet.</p>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="pl-h">
+          <div class="panel-head"><h2 id="pl-h">Production log this week</h2><span class="hint" id="pl-count"></span></div>
+          <div class="table-wrap">
+            <table id="pl-table">
+              <thead><tr><th>When</th><th>Who</th><th class="num">Amount</th><th>Note</th><th></th></tr></thead>
+              <tbody id="pl-body"></tbody>
+            </table>
+            <p class="empty" id="pl-empty">No production logged this week yet.</p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var state = { db: null, canWrite: false, pass: "", busy: false, services: [], sel: null, prod: [], missions: [], lbAll: false, adding: false, loaded: false };
+  var settingsDirty = false;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+  function cleanInt(v) { var n = Math.floor(Number(v)); return isFinite(n) && n > 0 ? n : 0; }
+  function cleanName(v) { return String(v == null ? "" : v).trim().replace(/\s+/g, " ").slice(0, 40); }
+  function key(name) { return name.trim().toLowerCase(); }
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function names(list) { return Array.isArray(list) ? list.map(cleanName).filter(Boolean).slice(0, 200) : []; }
+  function when(ts) {
+    var d = new Date(ts); if (!ts || isNaN(d)) return "";
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  function svc() { for (var i = 0; i < state.services.length; i++) if (state.services[i].id === state.sel) return state.services[i]; return null; }
+
+  var LABEL_KEYS = ["title", "level", "goal", "goalUnit", "produced", "missions", "each"];
+  function defaultLabel(s, k) {
+    return { goalUnit: s.goalOf === "missions" ? "missions" : s.unit, title: s.name + " Tracker", level: s.name + " level", goal: s.name + " goal for the week",
+      produced: cap(s.unit) + " produced this week", missions: "Missions this week", each: s.unit + " each" }[k];
+  }
+  function lab(s, k) { return s.labels[k] || defaultLabel(s, k); }
+
+  // ---- Pure math ----
+  // Prospects split pct% of production evenly; mentors split the rest evenly.
+  function payouts(produced, pct, nProspects, nMentors) {
+    var pPool = produced * pct / 100, mPool = produced - pPool;
+    return { pPool: pPool, mPool: mPool, pEach: nProspects ? pPool / nProspects : 0, mEach: nMentors ? mPool / nMentors : 0 };
+  }
+  function tally(prod, missions) {
+    var map = {};
+    function row(n) { var k = key(n); return map[k] || (map[k] = { name: n, produced: 0, missions: 0 }); }
+    prod.forEach(function (e) { row(e.who).produced += e.amount; });
+    missions.forEach(function (m) { m.participants.forEach(function (n) { row(n).missions += 1; }); });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return b.produced - a.produced || b.missions - a.missions || a.name.localeCompare(b.name); });
+  }
+  function roleOf(s, name) {
+    var k = key(name);
+    if (s.mentors.some(function (n) { return key(n) === k; })) return "mentor";
+    if (s.prospects.some(function (n) { return key(n) === k; })) return "prospect";
+    return "";
+  }
+  function weekOnly(list, s) { return list.filter(function (e) { return e.createdAt >= s.weekStart; }); }
+
+  // ---- Rendering ----
+  function render() {
+    renderTabs();
+    var s = svc();
+        $("no-services").hidden = !(state.loaded && !state.services.length);
+    $("main").hidden = !s;
+    if (s) renderService(s);
+    applyWriteState();
+  }
+
+  function renderTabs() {}
+
+  function renderService(s) {
+    var unit = s.unit, Unit = cap(unit);
+    $("page-title").textContent = lab(s, "title");
+    var prodW = weekOnly(state.prod, s), missW = weekOnly(state.missions, s);
+    var produced = prodW.reduce(function (a, e) { return a + e.amount; }, 0);
+    var pay = payouts(produced, s.prospectPct, s.prospects.length, s.mentors.length);
+
+    $("k-level").textContent = lab(s, "level");
+    $("v-level").textContent = s.level;
+    $("k-goal").textContent = lab(s, "goal");
+    $("v-goal").textContent = fmt(s.goal);
+    $("v-goal-unit").textContent = lab(s, "goalUnit");
+    var done = s.goalOf === "missions" ? missW.length : produced;
+    var pctDone = s.goal > 0 ? done / s.goal * 100 : 0;
+    $("goal-fill").style.width = Math.min(100, pctDone) + "%";
+    $("d-goal").textContent = s.goal <= 0 ? "No goal set" : done >= s.goal ? "Goal reached, " + fmt(done - s.goal) + " over" : Math.floor(pctDone) + "% there, " + fmt(s.goal - done) + " to go";
+    $("k-prod").textContent = lab(s, "produced");
+    $("k-miss").textContent = lab(s, "missions");
+    $("v-prod").textContent = fmt(produced);
+    $("d-week").textContent = "Week started " + new Date(s.weekStart).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    $("v-miss").textContent = missW.length;
+    var crew = {}; missW.forEach(function (m) { m.participants.forEach(function (n) { crew[key(n)] = 1; }); });
+    var nCrew = Object.keys(crew).length;
+    $("d-miss").textContent = missW.length ? nCrew + (nCrew === 1 ? " person took part" : " people took part") : "None completed yet";
+
+    // Payouts
+    $("pay-note").textContent = "Updates as " + unit + " are logged";
+    var mPct = 100 - s.prospectPct;
+    $("pp-title").textContent = "Prospects, " + s.prospectPct + "% of production";
+    $("mp-title").textContent = "Mentors, " + mPct + "% of production";
+    fillPool("pp", pay.pPool, pay.pEach, s.prospects, "prospect", unit);
+    fillPool("mp", pay.mPool, pay.mEach, s.mentors, "mentor", unit);
+
+    // Leaderboard
+    $("lb-week").setAttribute("aria-pressed", String(!state.lbAll));
+    $("lb-all").setAttribute("aria-pressed", String(state.lbAll));
+    $("th-prod").textContent = Unit + " produced";
+    var rows = state.lbAll ? tally(state.prod, state.missions) : tally(prodW, missW);
+    var tb = $("top-body"); tb.textContent = "";
+    rows.forEach(function (r, i) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "rank", i + 1));
+      tr.appendChild(el("td", "name", r.name));
+      var role = roleOf(s, r.name), rt = el("td");
+      rt.appendChild(el("span", "pill " + (role || "none"), role ? cap(role) : "Not on roster"));
+      tr.appendChild(rt);
+      tr.appendChild(el("td", "num", fmt(r.produced)));
+      tr.appendChild(el("td", "num", r.missions));
+      tb.appendChild(tr);
+    });
+    $("top-table").hidden = !rows.length; $("top-empty").hidden = !!rows.length;
+
+    // Missions this week
+    var mb = $("ml-body"); mb.textContent = "";
+    missW.forEach(function (m) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, when(m.createdAt)));
+      tr.appendChild(el("td", "name", m.title));
+      tr.appendChild(el("td", "note", m.participants.join(", ")));
+      tr.appendChild(removeCell("missions", m.id));
+      mb.appendChild(tr);
+    });
+    $("ml-table").hidden = !missW.length; $("ml-empty").hidden = !!missW.length;
+    $("ml-count").textContent = missW.length ? missW.length + " completed" : "";
+
+    // Production log this week
+    $("pl-h").textContent = "Production log this week";
+    var pb = $("pl-body"); pb.textContent = "";
+    prodW.forEach(function (e) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, when(e.createdAt)));
+      tr.appendChild(el("td", "name", e.who));
+      tr.appendChild(el("td", "num", "+" + fmt(e.amount)));
+      tr.appendChild(el("td", "note", e.note));
+      tr.appendChild(removeCell("production", e.id));
+      pb.appendChild(tr);
+    });
+    $("pl-table").hidden = !prodW.length; $("pl-empty").hidden = !!prodW.length;
+    $("pl-count").textContent = prodW.length ? prodW.length + (prodW.length === 1 ? " entry" : " entries") : "";
+
+    // Forms that depend on the roster
+    $("p-amt-label").textContent = "How many " + unit;
+    var all = s.mentors.concat(s.prospects);
+    var sel = $("p-who"), prev = sel.value || remembered();
+    sel.textContent = "";
+    var ph = el("option", null, all.length ? "Pick a name" : "Add mentors or prospects first"); ph.value = ""; sel.appendChild(ph);
+    all.forEach(function (n) { var o = el("option", null, n + " (" + roleOf(s, n) + ")"); o.value = n; sel.appendChild(o); });
+    if (all.indexOf(prev) >= 0) sel.value = prev;
+
+    var box = $("m-who"), checked = {};
+    box.querySelectorAll("input:checked").forEach(function (c) { checked[c.value] = 1; });
+    box.textContent = "";
+    if (!all.length) box.appendChild(el("span", "hint", "Add mentors or prospects first."));
+    all.forEach(function (n, i) {
+      var l = el("label"), c = el("input"); c.type = "checkbox"; c.value = n; c.id = "m-who-" + i; c.checked = !!checked[n];
+      l.htmlFor = c.id; l.appendChild(c); l.appendChild(document.createTextNode(n)); box.appendChild(l);
+    });
+
+    renderChips("mentor-chips", s.mentors, "mentor");
+    renderChips("prospect-chips", s.prospects, "prospect");
+
+    if (!settingsDirty) {
+      LABEL_KEYS.forEach(function (k) { $("w-" + k).value = lab(s, k); }); $("s-unit").value = s.unit; $("s-goalof").value = s.goalOf; $("s-level").value = s.level; $("s-goal").value = s.goal; $("s-pct").value = s.prospectPct;
+    }
+  }
+
+  function fillPool(prefix, pool, each, list, role, unit) {
+    $(prefix + "-each").textContent = "";
+    $(prefix + "-each").appendChild(document.createTextNode(list.length ? fmt(each) + " " : "0 "));
+    $(prefix + "-each").appendChild(el("small", null, lab(svc(), "each")));
+    $(prefix + "-how").textContent = list.length
+      ? fmt(pool) + " " + unit + " split between " + list.length + (list.length === 1 ? " " + role : " " + role + "s")
+      : fmt(pool) + " " + unit + " waiting. Add a " + role + " to split it.";
+    var c = $(prefix + "-names"); c.textContent = "";
+    list.forEach(function (n) { c.appendChild(el("span", "chip plain " + role, n)); });
+  }
+
+  function renderChips(id, list, role) {
+    var c = $(id); c.textContent = "";
+    if (!list.length) c.appendChild(el("span", "hint", "Nobody yet"));
+    list.forEach(function (n) {
+      var chip = el("span", "chip " + role, n);
+      if (state.canWrite) {
+        var x = el("button", null, "×"); x.type = "button"; x.setAttribute("aria-label", "Remove " + n);
+        x.addEventListener("click", function () { rosterRemove(role, n); });
+        chip.appendChild(x);
+      } else chip.className += " plain";
+      c.appendChild(chip);
+    });
+  }
+
+  function removeCell(coll, id) {
+    var td = el("td", "num");
+    if (state.canWrite) {
+      var b = el("button", "small ghost", "Remove"); b.type = "button";
+      b.addEventListener("click", function () {
+        confirmStep(b, "Remove for good?", function () {
+          return rpc("tracker_remove", { p_kind: coll, p_id: id });
+        });
+      });
+      td.appendChild(b);
+    }
+    return td;
+  }
+
+  function applyWriteState() {
+    var off = !state.db || !state.canWrite;
+    document.querySelectorAll("#main form input, #main form select, #main form button, #lvl-up, #lvl-down, #week-btn, #pc-new, #pc-btn")
+      .forEach(function (n) { n.disabled = off; });
+    $("copy-btn").disabled = false;
+    $("lock-closed").hidden = state.canWrite;
+    $("lock-open").hidden = !state.canWrite;
+    $("lock-pass").disabled = !state.db; $("lock-btn").disabled = !state.db;
+  }
+
+  // ---- Helpers for writes ----
+  function setMsg(id, text, kind) { var m = $(id); m.textContent = text || ""; m.className = "msg" + (kind ? " " + kind : ""); }
+  function setStatus(text, warn) { var s = $("status"); s.textContent = text; s.className = "status" + (warn ? " warn" : ""); }
+  function liveStatus() { setStatus(state.canWrite ? "Live. Editing unlocked on this device." : "Live. Viewing only until you unlock editing.", false); }
+  function lock(note) {
+    state.canWrite = false; state.pass = "";
+    try { localStorage.removeItem("rst-pass"); } catch (e) {}
+    if (note) setMsg("lock-msg", note, "err");
+    render(); if (state.loaded) liveStatus();
+  }
+  function explain(err) {
+    var msg = (err && err.message) || "";
+    if ((err && err.code === "28P01") || /wrong passcode/i.test(msg)) { lock("That passcode no longer works. Enter the current one."); return "The passcode is wrong. Unlock editing again."; }
+    if (err && err.code === "P0001" && msg) return msg;
+    if (err && (err.code === "23514" || err.code === "22P02")) return "That value isn't allowed. Check what you entered.";
+    return "Couldn't save. Check your connection and try again.";
+  }
+  function rpc(fn, args) {
+    var a = { p_passcode: state.pass }; Object.keys(args || {}).forEach(function (k) { a[k] = args[k]; });
+    return state.db.rpc(fn, a).then(function (r) { if (r.error) throw r.error; return r.data; });
+  }
+  function write(promiseFn, msgId, okText) {
+    if (!state.db || state.busy || !state.canWrite) return Promise.resolve(false);
+    state.busy = true;
+    var p; try { p = promiseFn(); } catch (e) { p = Promise.reject(e); }
+    return p.then(function () { if (msgId) setMsg(msgId, okText || "", "ok"); return refresh().then(function () { return true; }, function () { return true; }); },
+                  function (e) { var t = explain(e); if (msgId) setMsg(msgId, t, "err"); else setStatus(t, true); return false; })
+            .then(function (ok) { state.busy = false; return ok; });
+  }
+  function confirmStep(btn, question, fn) {
+    if (btn.dataset.armed !== "1") {
+      var orig = btn.textContent; btn.dataset.armed = "1"; btn.textContent = question; btn.style.color = "var(--danger)";
+      setTimeout(function () { if (btn.isConnected && btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.textContent = orig; btn.style.color = ""; } }, 4000);
+      return;
+    }
+    btn.dataset.armed = ""; btn.disabled = true;
+    write(fn).then(function () { render(); });
+  }
+  function remembered() { try { return localStorage.getItem("rst-me") || ""; } catch (e) { return ""; } }
+  function remember(n) { try { localStorage.setItem("rst-me", n); } catch (e) {} }
+  function updateConfig(patch) { return rpc("tracker_update_config", { p_patch: patch }); }
+
+  // ---- Actions ----
+  $("lock-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var p = $("lock-pass").value;
+    if (!p || !state.db) return;
+    $("lock-btn").disabled = true; setMsg("lock-msg", "Checking…", "");
+    state.db.rpc("tracker_check", { p_passcode: p }).then(function (r) {
+      $("lock-btn").disabled = false;
+      if (r.error) { setMsg("lock-msg", /wrong passcode/i.test(r.error.message || "") || r.error.code === "28P01" ? "That passcode is wrong." : "Couldn't check the passcode. Try again.", "err"); return; }
+      state.pass = p; state.canWrite = true; $("lock-pass").value = ""; setMsg("lock-msg", "");
+      try { localStorage.setItem("rst-pass", p); } catch (e) {}
+      render(); liveStatus();
+    });
+  });
+  $("relock-btn").addEventListener("click", function () { lock(""); setMsg("lock-msg", ""); });
+
+  $("prod-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var s = svc(); if (!s) return;
+    var who = $("p-who").value, amt = cleanInt($("p-amt").value), note = $("p-note").value.trim().slice(0, 120);
+    if (!who) { setMsg("p-msg", "Pick who produced it.", "err"); return; }
+    if (!amt) { setMsg("p-msg", "Enter a whole number, 1 or more.", "err"); return; }
+    write(function () {
+      return rpc("tracker_add_production", { p_who: who, p_amount: amt, p_note: note });
+    }, "p-msg", "Added " + fmt(amt) + " " + s.unit + " for " + who + ".").then(function (ok) {
+      if (ok) { remember(who); $("p-amt").value = ""; $("p-note").value = ""; }
+    });
+  });
+
+  $("miss-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var title = $("m-title").value.trim().slice(0, 80), who = [];
+    $("m-who").querySelectorAll("input:checked").forEach(function (c) { who.push(c.value); });
+    if (!title) { setMsg("m-msg", "Say what the mission was.", "err"); return; }
+    if (!who.length) { setMsg("m-msg", "Tick at least one person who took part.", "err"); return; }
+    write(function () {
+      return rpc("tracker_add_mission", { p_title: title, p_participants: who });
+    }, "m-msg", "Mission logged with " + who.length + (who.length === 1 ? " person." : " people.")).then(function (ok) {
+      if (ok) { $("m-title").value = ""; $("m-who").querySelectorAll("input").forEach(function (c) { c.checked = false; }); }
+    });
+  });
+
+  function rosterAdd(role, inputId) {
+    var s = svc(); if (!s) return;
+    var n = cleanName($(inputId).value).slice(0, 30);
+    if (!n) return;
+    var k = key(n);
+    var existing = s.mentors.concat(s.prospects).filter(function (x) { return key(x) === k; })[0];
+    if (existing) n = existing;
+    var mentors = s.mentors.filter(function (x) { return key(x) !== k; });
+    var prospects = s.prospects.filter(function (x) { return key(x) !== k; });
+    (role === "mentor" ? mentors : prospects).push(n);
+    write(function () { return updateConfig({ mentors: mentors, prospects: prospects }); }, "r-msg", n + " is now a " + role + ".")
+      .then(function (ok) { if (ok) $(inputId).value = ""; });
+  }
+  function rosterRemove(role, n) {
+    var s = svc(); if (!s) return;
+    var k = key(n), patch = {};
+    patch[role + "s"] = s[role + "s"].filter(function (x) { return key(x) !== k; });
+    write(function () { return updateConfig(patch); }, "r-msg", n + " removed from " + role + "s. Their past numbers stay in the totals.");
+  }
+  $("mentor-form").addEventListener("submit", function (ev) { ev.preventDefault(); rosterAdd("mentor", "mentor-in"); });
+  $("prospect-form").addEventListener("submit", function (ev) { ev.preventDefault(); rosterAdd("prospect", "prospect-in"); });
+
+  function bumpLevel(d) {
+    var s = svc(); if (!s) return;
+    var lv = Math.max(0, Math.min(999, s.level + d));
+    if (lv !== s.level) write(function () { return updateConfig({ level: lv }); });
+  }
+  $("lvl-up").addEventListener("click", function () { bumpLevel(1); });
+  $("lvl-down").addEventListener("click", function () { bumpLevel(-1); });
+
+  ["w-title", "w-level", "w-goal", "w-goalUnit", "s-goalof", "w-produced", "w-missions", "w-each", "s-unit", "s-level", "s-goal", "s-pct"].forEach(function (id) { $(id).addEventListener("input", function () { settingsDirty = true; }); });
+  $("set-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var unit = cleanName($("s-unit").value).slice(0, 20).toLowerCase();
+    var labels = {}; LABEL_KEYS.forEach(function (k) { labels[k] = cleanName($("w-" + k).value); });
+    var level = Math.floor(Number($("s-level").value)), goal = Math.floor(Number($("s-goal").value)), pct = Number($("s-pct").value);
+    if (!unit) { setMsg("s-msg", "Enter what it produces.", "err"); return; }
+    if (!(level >= 0) || !(goal >= 0)) { setMsg("s-msg", "Level and goal must be 0 or more.", "err"); return; }
+    if (!(pct >= 0 && pct <= 100)) { setMsg("s-msg", "The prospects' share must be between 0 and 100.", "err"); return; }
+    settingsDirty = false;
+    write(function () { return updateConfig({ unit: unit, level: level, goal: goal, prospectPct: pct, labels: labels, goalOf: $("s-goalof").value === "missions" ? "missions" : "production" }); }, "s-msg", "Settings saved.")
+      .then(function (ok) { if (!ok) settingsDirty = true; render(); });
+  });
+  $("week-btn").addEventListener("click", function () {
+    confirmStep($("week-btn"), "Reset this week's numbers?", function () { return rpc("tracker_new_week", {}); });
+  });
+  $("pc-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var n = $("pc-new").value;
+    if (n.length < 6) { setMsg("pc-msg", "Use at least 6 characters.", "err"); return; }
+    write(function () { return rpc("tracker_set_passcode", { p_new: n }); }, "pc-msg", "Passcode changed. Give the new one to your mentors.").then(function (ok) {
+      if (ok) { state.pass = n; try { localStorage.setItem("rst-pass", n); } catch (e) {} $("pc-new").value = ""; }
+    });
+  });
+
+  $("lb-week").addEventListener("click", function () { state.lbAll = false; render(); });
+  $("lb-all").addEventListener("click", function () { state.lbAll = true; render(); });
+
+  // Discord-formatted summary (the database also posts this to Discord on every change).
+  function discordText() {
+    var s = svc(); if (!s) return "";
+    var prodW = weekOnly(state.prod, s), missW = weekOnly(state.missions, s);
+    var produced = prodW.reduce(function (a, e) { return a + e.amount; }, 0);
+    var pay = payouts(produced, s.prospectPct, s.prospects.length, s.mentors.length);
+    var done = s.goalOf === "missions" ? missW.length : produced;
+    var L = ["**" + lab(s, "title") + "** | " + lab(s, "level") + ": " + s.level,
+      lab(s, "goal") + ": " + fmt(done) + " / " + fmt(s.goal) + " " + lab(s, "goalUnit") + (s.goal > 0 ? " (" + Math.floor(done / s.goal * 100) + "%)" : ""),
+      lab(s, "produced") + ": " + fmt(produced),
+      lab(s, "missions") + ": " + missW.length, "", "**Live payouts**",
+      "Prospects (" + s.prospectPct + "% = " + fmt(pay.pPool) + " " + s.unit + "): " + (s.prospects.length ? fmt(pay.pEach) + " each for " + s.prospects.join(", ") : "no prospects listed"),
+      "Mentors (" + (100 - s.prospectPct) + "% = " + fmt(pay.mPool) + " " + s.unit + "): " + (s.mentors.length ? fmt(pay.mEach) + " each for " + s.mentors.join(", ") : "no mentors listed"),
+      "", "**Who produced the most this week**"];
+    var rows = tally(prodW, missW);
+    if (!rows.length) L.push("Nothing logged yet.");
+    rows.forEach(function (r, i) { L.push((i + 1) + ". " + r.name + ": " + fmt(r.produced) + " " + s.unit + ", " + r.missions + (r.missions === 1 ? " mission" : " missions")); });
+    return L.join("\n");
+  }
+  $("copy-btn").addEventListener("click", function () {
+    var text = discordText(), box = $("copy-box");
+    function fallback() { box.value = text; box.hidden = false; box.focus(); box.select(); setMsg("copy-msg", "Copy the text below and paste it in Discord.", ""); }
+    try { navigator.clipboard.writeText(text).then(function () { box.hidden = true; setMsg("copy-msg", "Copied. Paste it in your Discord channel.", "ok"); }, fallback); }
+    catch (e) { fallback(); }
+  });
+
+  // ---- Data connection (Supabase) ----
+  var SUPABASE_URL = "https://smhlgkzjnnbvabnikmki.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_IJeNzGO1hNjC0oMzaYXuKA_UHee-mZg"; // public, read-only key; writes need the passcode
+
+  function parseConfig(x) {
+    x = x || {}; var pct = Number(x.prospectPct);
+    return {
+      id: "main",
+      name: cleanName(x.name).slice(0, 30) || "Service",
+      unit: cleanName(x.unit).slice(0, 20) || "items",
+      level: Math.max(0, Math.floor(Number(x.level)) || 0),
+      goal: Math.max(0, Math.floor(Number(x.goal)) || 0),
+      prospectPct: isFinite(pct) && x.prospectPct != null ? Math.max(0, Math.min(100, pct)) : 80,
+      mentors: names(x.mentors), prospects: names(x.prospects),
+      weekStart: Number(x.weekStart) || 0,
+      goalOf: x.goalOf === "missions" ? "missions" : "production",
+      labels: (function (l) { var o = {}; LABEL_KEYS.forEach(function (k) { o[k] = l && typeof l[k] === "string" ? cleanName(l[k]) : ""; }); return o; })(x.labels)
+    };
+  }
+
+  var refreshing = null, failures = 0;
+  function refresh() {
+    if (refreshing) return refreshing;
+    var db = state.db;
+    refreshing = Promise.all([
+      db.from("tracker_config").select("data").eq("id", "main").maybeSingle(),
+      db.from("tracker_production").select("id,who,amount,note,created_at").order("created_at", { ascending: false }).limit(1000),
+      db.from("tracker_missions").select("id,title,participants,created_at").order("created_at", { ascending: false }).limit(1000)
+    ]).then(function (r) {
+      refreshing = null;
+      if (r[0].error || r[1].error || r[2].error) throw (r[0].error || r[1].error || r[2].error);
+      state.services = r[0].data ? [parseConfig(r[0].data.data)] : [];
+      state.sel = state.services.length ? "main" : null;
+      state.prod = (r[1].data || []).map(function (x) {
+        return { id: x.id, who: cleanName(x.who) || "Unknown", amount: cleanInt(x.amount), note: String(x.note == null ? "" : x.note).slice(0, 200), createdAt: Date.parse(x.created_at) || 0 };
+      });
+      state.missions = (r[2].data || []).map(function (x) {
+        return { id: x.id, title: String(x.title == null ? "Mission" : x.title).slice(0, 120) || "Mission", participants: names(x.participants), createdAt: Date.parse(x.created_at) || 0 };
+      });
+      failures = 0; state.loaded = true; liveStatus(); render();
+    }, function (e) {
+      refreshing = null; failures++;
+      setStatus(state.loaded ? "Connection trouble. Numbers may be out of date." : "The tracker's data can't be reached yet. Still trying…", true);
+      throw e;
+    });
+    return refreshing;
+  }
+
+  function start() {
+    render();
+    if (!window.supabase || !window.supabase.createClient) { setStatus("The page couldn't load fully. Check your connection and reload.", true); return; }
+    state.db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    var kick = null;
+    function soon() { clearTimeout(kick); kick = setTimeout(function () { refresh().catch(function () {}); }, 250); }
+    refresh().catch(function () {}).then(function () {
+      var saved = ""; try { saved = localStorage.getItem("rst-pass") || ""; } catch (e) {}
+      if (!saved) return;
+      state.db.rpc("tracker_check", { p_passcode: saved }).then(function (r) {
+        if (!r.error) { state.pass = saved; state.canWrite = true; render(); if (state.loaded) liveStatus(); }
+        else if (/wrong passcode/i.test(r.error.message || "")) { try { localStorage.removeItem("rst-pass"); } catch (e) {} }
+      });
+    });
+    try {
+      var ch = state.db.channel("tracker-changes");
+      ["tracker_config", "tracker_production", "tracker_missions"].forEach(function (t) {
+        ch.on("postgres_changes", { event: "*", schema: "public", table: t }, soon);
+      });
+      ch.subscribe();
+    } catch (e) {}
+    // Fallback in case the live channel drops.
+    setInterval(function () { if (!document.hidden) refresh().catch(function () {}); }, 30000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) soon(); });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

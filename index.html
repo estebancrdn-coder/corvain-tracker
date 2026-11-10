@@ -80,6 +80,7 @@ h3 { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter
 .lockrow input { width: 220px; max-width: 100%; }
 input[type="password"] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; }
 .cols { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.cols.solo { grid-template-columns: minmax(0, 1fr); }
 .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
 form { display: flex; flex-direction: column; gap: 12px; }
@@ -139,6 +140,7 @@ td.rank { color: var(--muted); width: 28px; }
 .pill.owed { background: var(--owed-soft); color: var(--owed); }
 .pill.mentor { background: var(--owed-soft); color: var(--owed); }
 .pill.prospect { background: var(--leaf-soft); color: var(--leaf); }
+.pill.failed { background: #3a1c19; color: var(--danger); }
 .pill.none { background: var(--bg); color: var(--muted); }
 .empty { color: var(--muted); padding: 8px 2px; margin: 0; }
 textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; }
@@ -172,12 +174,12 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   <section class="panel lockbar" aria-label="Editing access">
     <form id="lock-form" class="lockrow" autocomplete="off">
       <div id="lock-closed" class="lockrow">
-        <label for="lock-pass">Passcode to edit</label>
+        <label for="lock-pass">Passcode</label>
         <input type="password" id="lock-pass" maxlength="100" autocomplete="off" placeholder="Enter passcode">
-        <button type="submit" id="lock-btn">Unlock editing</button>
+        <button type="submit" id="lock-btn">Unlock</button>
       </div>
       <div id="lock-open" class="lockrow" hidden>
-        <span>Editing is unlocked on this device.</span>
+        <span id="lock-who">Unlocked on this device.</span>
         <button type="button" id="relock-btn" class="small">Lock</button>
       </div>
       <span class="msg" id="lock-msg" role="status" style="min-height:0"></span>
@@ -193,12 +195,12 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
         <div class="k" id="k-level">Level</div>
         <div class="level-row">
           <div class="v" id="v-level">1</div>
-          <div class="stepper">
+          <div class="stepper" id="level-stepper" hidden>
             <button type="button" id="lvl-down" aria-label="Lower level">−</button>
             <button type="button" id="lvl-up" aria-label="Raise level">+</button>
           </div>
         </div>
-        <div class="d">Set by hand</div>
+        <div class="d" id="level-note"></div>
       </div>
       <div class="tile">
         <div class="k" id="k-goal">Goal for the week</div>
@@ -218,8 +220,8 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
       </div>
     </section>
 
-    <div class="cols">
-      <div class="stack">
+    <div class="cols solo" id="cols">
+      <div class="stack" id="edit-col" hidden>
         <section class="panel" aria-labelledby="lp-h">
           <h2 id="lp-h">Log production</h2>
           <form id="prod-form" autocomplete="off">
@@ -251,7 +253,15 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
               <legend>Who took part</legend>
               <div class="checks" id="m-who"></div>
             </fieldset>
-            <button type="submit" class="primary" id="m-btn">Mark mission completed</button>
+            <div class="field">
+              <label for="m-result">Result</label>
+              <select id="m-result"><option value="done">Completed</option><option value="failed">Failed</option></select>
+            </div>
+            <div class="field">
+              <label for="m-comment">Comment <span class="hint">(what happened; optional)</span></label>
+              <input type="text" id="m-comment" maxlength="300">
+            </div>
+            <button type="submit" class="primary" id="m-btn">Log mission</button>
             <p class="msg" id="m-msg" role="status"></p>
           </form>
         </section>
@@ -281,7 +291,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
           </details>
         </section>
 
-        <section class="panel">
+        <section class="panel" id="settings-panel" hidden>
           <details id="settings">
             <summary>Wording and settings</summary>
             <div class="details-body">
@@ -312,8 +322,10 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
                 <p class="msg" id="s-msg" role="status"></p>
               </form>
               <form id="pc-form" autocomplete="off">
-                <h3>Change the passcode</h3>
-                <span class="hint">Everyone who edits will need the new one.</span>
+                <h3>Change a passcode</h3>
+                <span class="hint">The mentor passcode lets people log numbers and edit the lists. The owner passcode is yours alone.</span>
+                <div class="field"><label for="pc-which">Which passcode</label>
+                  <select id="pc-which"><option value="mentor">Mentor passcode</option><option value="owner">Owner passcode (yours)</option></select></div>
                 <div class="inline"><input type="password" id="pc-new" maxlength="100" autocomplete="new-password" placeholder="New passcode" aria-label="New passcode"><button type="submit" id="pc-btn">Change</button></div>
                 <p class="msg" id="pc-msg" role="status"></p>
               </form>
@@ -375,10 +387,10 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
           <div class="panel-head"><h2 id="ml-h">Missions this week</h2><span class="hint" id="ml-count"></span></div>
           <div class="table-wrap">
             <table id="ml-table">
-              <thead><tr><th>When</th><th>Mission</th><th>Who took part</th><th></th></tr></thead>
+              <thead><tr><th>When</th><th>Mission</th><th>Result</th><th>Who took part</th><th>Comment</th><th></th></tr></thead>
               <tbody id="ml-body"></tbody>
             </table>
-            <p class="empty" id="ml-empty">No missions completed this week yet.</p>
+            <p class="empty" id="ml-empty">No missions logged this week yet.</p>
           </div>
         </section>
 
@@ -402,7 +414,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
 (function () {
   "use strict";
 
-  var state = { db: null, canWrite: false, pass: "", busy: false, services: [], sel: null, prod: [], missions: [], lbAll: false, adding: false, loaded: false };
+  var state = { db: null, canWrite: false, role: "", pass: "", busy: false, services: [], sel: null, prod: [], missions: [], lbAll: false, adding: false, loaded: false };
   var settingsDirty = false;
 
   function $(id) { return document.getElementById(id); }
@@ -463,7 +475,8 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   function renderService(s) {
     var unit = s.unit, Unit = cap(unit);
     $("page-title").textContent = lab(s, "title");
-    var prodW = weekOnly(state.prod, s), missW = weekOnly(state.missions, s);
+    var prodW = weekOnly(state.prod, s), missAll = weekOnly(state.missions, s);
+    var missW = missAll.filter(function (m) { return !m.failed; }), nFailed = missAll.length - missW.length;
     var produced = prodW.reduce(function (a, e) { return a + e.amount; }, 0);
     var pay = payouts(produced, s.prospectPct, s.prospects.length, s.mentors.length);
 
@@ -483,7 +496,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
     $("v-miss").textContent = missW.length;
     var crew = {}; missW.forEach(function (m) { m.participants.forEach(function (n) { crew[key(n)] = 1; }); });
     var nCrew = Object.keys(crew).length;
-    $("d-miss").textContent = missW.length ? nCrew + (nCrew === 1 ? " person took part" : " people took part") : "None completed yet";
+    $("d-miss").textContent = (missW.length ? nCrew + (nCrew === 1 ? " person took part" : " people took part") : "None completed yet") + (nFailed ? ", " + nFailed + " failed" : "");
 
     // Payouts
     $("pay-note").textContent = "Updates as " + unit + " are logged";
@@ -497,7 +510,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
     $("lb-week").setAttribute("aria-pressed", String(!state.lbAll));
     $("lb-all").setAttribute("aria-pressed", String(state.lbAll));
     $("th-prod").textContent = Unit + " produced";
-    var rows = state.lbAll ? tally(state.prod, state.missions) : tally(prodW, missW);
+    var rows = state.lbAll ? tally(state.prod, state.missions.filter(function (m) { return !m.failed; })) : tally(prodW, missW);
     var tb = $("top-body"); tb.textContent = "";
     rows.forEach(function (r, i) {
       var tr = el("tr");
@@ -514,16 +527,18 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
 
     // Missions this week
     var mb = $("ml-body"); mb.textContent = "";
-    missW.forEach(function (m) {
+    missAll.forEach(function (m) {
       var tr = el("tr");
       tr.appendChild(el("td", null, when(m.createdAt)));
       tr.appendChild(el("td", "name", m.title));
+      var rs = el("td"); rs.appendChild(el("span", "pill " + (m.failed ? "failed" : "prospect"), m.failed ? "Failed" : "Completed")); tr.appendChild(rs);
       tr.appendChild(el("td", "note", m.participants.join(", ")));
+      tr.appendChild(el("td", "note", m.comment));
       tr.appendChild(removeCell("missions", m.id));
       mb.appendChild(tr);
     });
-    $("ml-table").hidden = !missW.length; $("ml-empty").hidden = !!missW.length;
-    $("ml-count").textContent = missW.length ? missW.length + " completed" : "";
+    $("ml-table").hidden = !missAll.length; $("ml-empty").hidden = !!missAll.length;
+    $("ml-count").textContent = missAll.length ? missW.length + " completed" + (nFailed ? ", " + nFailed + " failed" : "") : "";
 
     // Production log this week
     $("pl-h").textContent = "Production log this week";
@@ -593,7 +608,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
 
   function removeCell(coll, id) {
     var td = el("td", "num");
-    if (state.canWrite) {
+    if (state.role === "owner") {
       var b = el("button", "small ghost", "Remove"); b.type = "button";
       b.addEventListener("click", function () {
         confirmStep(b, "Remove for good?", function () {
@@ -606,21 +621,28 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   }
 
   function applyWriteState() {
-    var off = !state.db || !state.canWrite;
-    document.querySelectorAll("#main form input, #main form select, #main form button, #lvl-up, #lvl-down, #week-btn, #pc-new, #pc-btn")
+    var off = !state.db || !state.canWrite, owner = state.role === "owner";
+    document.querySelectorAll("#main form input, #main form select, #main form button, #lvl-up, #lvl-down, #week-btn")
       .forEach(function (n) { n.disabled = off; });
     $("copy-btn").disabled = false;
     $("lock-closed").hidden = state.canWrite;
     $("lock-open").hidden = !state.canWrite;
+    $("lock-who").textContent = owner ? "Unlocked as owner on this device." : "Unlocked as mentor on this device.";
     $("lock-pass").disabled = !state.db; $("lock-btn").disabled = !state.db;
+    // Each role sees only what it can change, plus the results.
+    $("edit-col").hidden = !state.canWrite;
+    $("cols").classList.toggle("solo", !state.canWrite);
+    $("settings-panel").hidden = !owner;
+    $("level-stepper").hidden = !owner;
+    $("level-note").textContent = owner ? "Set by hand" : "";
   }
 
   // ---- Helpers for writes ----
   function setMsg(id, text, kind) { var m = $(id); m.textContent = text || ""; m.className = "msg" + (kind ? " " + kind : ""); }
   function setStatus(text, warn) { var s = $("status"); s.textContent = text; s.className = "status" + (warn ? " warn" : ""); }
-  function liveStatus() { setStatus(state.canWrite ? "Live. Editing unlocked on this device." : "Live. Viewing only until you unlock editing.", false); }
+  function liveStatus() { setStatus(state.role === "owner" ? "Live. Unlocked as owner." : state.canWrite ? "Live. Unlocked as mentor." : "Live. Viewing only.", false); }
   function lock(note) {
-    state.canWrite = false; state.pass = "";
+    state.canWrite = false; state.role = ""; state.pass = "";
     try { localStorage.removeItem("rst-pass"); } catch (e) {}
     if (note) setMsg("lock-msg", note, "err");
     render(); if (state.loaded) liveStatus();
@@ -628,6 +650,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   function explain(err) {
     var msg = (err && err.message) || "";
     if ((err && err.code === "28P01") || /wrong passcode/i.test(msg)) { lock("That passcode no longer works. Enter the current one."); return "The passcode is wrong. Unlock editing again."; }
+    if (/only the owner/i.test(msg)) return "Only the owner can do that.";
     if (err && err.code === "P0001" && msg) return msg;
     if (err && (err.code === "23514" || err.code === "22P02")) return "That value isn't allowed. Check what you entered.";
     return "Couldn't save. Check your connection and try again.";
@@ -666,7 +689,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
     state.db.rpc("tracker_check", { p_passcode: p }).then(function (r) {
       $("lock-btn").disabled = false;
       if (r.error) { setMsg("lock-msg", /wrong passcode/i.test(r.error.message || "") || r.error.code === "28P01" ? "That passcode is wrong." : "Couldn't check the passcode. Try again.", "err"); return; }
-      state.pass = p; state.canWrite = true; $("lock-pass").value = ""; setMsg("lock-msg", "");
+      state.pass = p; state.canWrite = true; state.role = r.data === "owner" ? "owner" : "mentor"; $("lock-pass").value = ""; setMsg("lock-msg", "");
       try { localStorage.setItem("rst-pass", p); } catch (e) {}
       render(); liveStatus();
     });
@@ -692,10 +715,11 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
     $("m-who").querySelectorAll("input:checked").forEach(function (c) { who.push(c.value); });
     if (!title) { setMsg("m-msg", "Say what the mission was.", "err"); return; }
     if (!who.length) { setMsg("m-msg", "Tick at least one person who took part.", "err"); return; }
+    var failed = $("m-result").value === "failed", comment = $("m-comment").value.trim().slice(0, 300);
     write(function () {
-      return rpc("tracker_add_mission", { p_title: title, p_participants: who });
-    }, "m-msg", "Mission logged with " + who.length + (who.length === 1 ? " person." : " people.")).then(function (ok) {
-      if (ok) { $("m-title").value = ""; $("m-who").querySelectorAll("input").forEach(function (c) { c.checked = false; }); }
+      return rpc("tracker_add_mission", { p_title: title, p_participants: who, p_failed: failed, p_comment: comment });
+    }, "m-msg", (failed ? "Failed mission logged with " : "Mission logged with ") + who.length + (who.length === 1 ? " person." : " people.")).then(function (ok) {
+      if (ok) { $("m-title").value = ""; $("m-comment").value = ""; $("m-result").value = "done"; $("m-who").querySelectorAll("input").forEach(function (c) { c.checked = false; }); }
     });
   });
 
@@ -747,10 +771,13 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   });
   $("pc-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var n = $("pc-new").value;
+    var n = $("pc-new").value, which = $("pc-which").value === "owner" ? "owner" : "mentor";
     if (n.length < 6) { setMsg("pc-msg", "Use at least 6 characters.", "err"); return; }
-    write(function () { return rpc("tracker_set_passcode", { p_new: n }); }, "pc-msg", "Passcode changed. Give the new one to your mentors.").then(function (ok) {
-      if (ok) { state.pass = n; try { localStorage.setItem("rst-pass", n); } catch (e) {} $("pc-new").value = ""; }
+    write(function () { return rpc("tracker_set_passcode", { p_which: which, p_new: n }); }, "pc-msg",
+      which === "owner" ? "Owner passcode changed. Keep it to yourself." : "Mentor passcode changed. Give the new one to your mentors.").then(function (ok) {
+      if (!ok) return;
+      if (which === "owner") { state.pass = n; try { localStorage.setItem("rst-pass", n); } catch (e) {} }
+      $("pc-new").value = "";
     });
   });
 
@@ -760,14 +787,15 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
   // Discord-formatted summary (the database also posts this to Discord on every change).
   function discordText() {
     var s = svc(); if (!s) return "";
-    var prodW = weekOnly(state.prod, s), missW = weekOnly(state.missions, s);
+    var prodW = weekOnly(state.prod, s), missAll = weekOnly(state.missions, s);
+    var missW = missAll.filter(function (m) { return !m.failed; }), nFailed = missAll.length - missW.length;
     var produced = prodW.reduce(function (a, e) { return a + e.amount; }, 0);
     var pay = payouts(produced, s.prospectPct, s.prospects.length, s.mentors.length);
     var done = s.goalOf === "missions" ? missW.length : produced;
     var L = ["**" + lab(s, "title") + "** | " + lab(s, "level") + ": " + s.level,
       lab(s, "goal") + ": " + fmt(done) + " / " + fmt(s.goal) + " " + lab(s, "goalUnit") + (s.goal > 0 ? " (" + Math.floor(done / s.goal * 100) + "%)" : ""),
       lab(s, "produced") + ": " + fmt(produced),
-      lab(s, "missions") + ": " + missW.length, "", "**Live payouts**",
+      lab(s, "missions") + ": " + missW.length + " completed" + (nFailed ? ", " + nFailed + " failed" : ""), "", "**Live payouts**",
       "Prospects (" + s.prospectPct + "% = " + fmt(pay.pPool) + " " + s.unit + "): " + (s.prospects.length ? fmt(pay.pEach) + " each for " + s.prospects.join(", ") : "no prospects listed"),
       "Mentors (" + (100 - s.prospectPct) + "% = " + fmt(pay.mPool) + " " + s.unit + "): " + (s.mentors.length ? fmt(pay.mEach) + " each for " + s.mentors.join(", ") : "no mentors listed"),
       "", "**Who produced the most this week**"];
@@ -810,7 +838,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
     refreshing = Promise.all([
       db.from("tracker_config").select("data").eq("id", "main").maybeSingle(),
       db.from("tracker_production").select("id,who,amount,note,created_at").order("created_at", { ascending: false }).limit(1000),
-      db.from("tracker_missions").select("id,title,participants,created_at").order("created_at", { ascending: false }).limit(1000)
+      db.from("tracker_missions").select("id,title,participants,failed,comment,created_at").order("created_at", { ascending: false }).limit(1000)
     ]).then(function (r) {
       refreshing = null;
       if (r[0].error || r[1].error || r[2].error) throw (r[0].error || r[1].error || r[2].error);
@@ -820,7 +848,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
         return { id: x.id, who: cleanName(x.who) || "Unknown", amount: cleanInt(x.amount), note: String(x.note == null ? "" : x.note).slice(0, 200), createdAt: Date.parse(x.created_at) || 0 };
       });
       state.missions = (r[2].data || []).map(function (x) {
-        return { id: x.id, title: String(x.title == null ? "Mission" : x.title).slice(0, 120) || "Mission", participants: names(x.participants), createdAt: Date.parse(x.created_at) || 0 };
+        return { id: x.id, title: String(x.title == null ? "Mission" : x.title).slice(0, 120) || "Mission", participants: names(x.participants), failed: x.failed === true, comment: String(x.comment == null ? "" : x.comment).slice(0, 300), createdAt: Date.parse(x.created_at) || 0 };
       });
       failures = 0; state.loaded = true; liveStatus(); render();
     }, function (e) {
@@ -841,7 +869,7 @@ textarea#copy-box { width: 100%; font: 13px/1.4 ui-monospace, Menlo, Consolas, m
       var saved = ""; try { saved = localStorage.getItem("rst-pass") || ""; } catch (e) {}
       if (!saved) return;
       state.db.rpc("tracker_check", { p_passcode: saved }).then(function (r) {
-        if (!r.error) { state.pass = saved; state.canWrite = true; render(); if (state.loaded) liveStatus(); }
+        if (!r.error) { state.pass = saved; state.canWrite = true; state.role = r.data === "owner" ? "owner" : "mentor"; render(); if (state.loaded) liveStatus(); }
         else if (/wrong passcode/i.test(r.error.message || "")) { try { localStorage.removeItem("rst-pass"); } catch (e) {} }
       });
     });
